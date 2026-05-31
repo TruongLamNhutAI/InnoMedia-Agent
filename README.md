@@ -8,63 +8,67 @@ Markdown
 ![Redis](https://img.shields.io/badge/Redis-Message_Broker-DC382D?style=for-the-badge&logo=redis)
 ![Docker](https://img.shields.io/badge/Docker-Containerization-2496ED?style=for-the-badge&logo=docker)
 
-## 📖 Tổng quan dự án (Overview)
-**InnoMedia-Agent** là một hệ thống tự động hóa hoàn toàn quy trình sản xuất video Affiliate Marketing. Bắt đầu từ một đường link sản phẩm (E-commerce URL), hệ thống sử dụng kiến trúc **Microservices** để bóc tách thông tin, sử dụng AI (LangGraph) để tự động viết kịch bản chốt sale, và cuối cùng render ra một video hoàn chỉnh (bao gồm Hình ảnh, Giọng nói AI, Phụ đề và Nhạc nền) sẵn sàng để đăng tải.
+## 📖 Overview
+**InnoMedia-Agent** is a fully automated pipeline designed for the production of Affiliate Marketing videos. Starting from a single e-commerce product URL, the system leverages a robust **Microservices** architecture to extract information, utilizes AI (LangGraph) to generate highly-converting sales scripts, and finally renders a complete video (including AI-generated images, Text-to-Speech voiceovers, dynamic subtitles, and background music) ready for publication.
 
-Dự án được thiết kế hướng tới môi trường Production với khả năng xử lý bất đồng bộ (Asynchronous Processing), chịu lỗi cao (Fault Tolerance) và cách ly môi trường hoàn toàn bằng Docker.
+The project is built with a Production-ready mindset, emphasizing Asynchronous Processing, Fault Tolerance, and complete environment isolation via Docker.
 
-## 🏗️ Kiến trúc Hệ thống (System Architecture)
-Hệ thống được chia thành 5 thành phần (Services) hoạt động độc lập và giao tiếp thông qua Message Broker:
+## 🏗️ System Architecture
+The pipeline is divided into 5 independent services communicating via a Message Broker:
 
 1. **Service 1: Web Gateway (Django)**
-   - Đóng vai trò là điểm chạm của người dùng (User Interface).
-   - Tiếp nhận URL sản phẩm, ghi nhận trạng thái vào Database và đẩy Task vào hàng đợi.
+   - Acts as the User Interface (UI) and primary entry point.
+   - Receives product URLs, logs task status into the Database, and dispatches jobs to the queue.
 2. **Message Broker (Redis)**
-   - Trạm trung chuyển dữ liệu trung tâm, lưu trữ hàng đợi công việc (Queue) để tránh quá tải hệ thống khi có nhiều yêu cầu cùng lúc.
+   - The central data hub, maintaining the task queue to prevent system overload during high-traffic spikes.
 3. **Task Worker (Celery)**
-   - Chạy ngầm phía sau (Background Processing). Lấy Task từ Redis, điều phối luồng gọi API đến các AI Service và Media Service, sau đó lưu file kết quả.
+   - Operates as a background processor. Retrieves tasks from Redis, orchestrates API calls between the AI and Media services, and manages final asset storage.
 4. **Service 2: AI Orchestrator (FastAPI + LangGraph + Groq)**
-   - Phân tích URL sản phẩm. Sử dụng mô hình Multi-Agent (Writer & Reviewer cãi nhau để tự tối ưu kịch bản) nhằm tạo ra nội dung có tỷ lệ chuyển đổi cao nhất.
+   - Analyzes the product URL and utilizes a Multi-Agent system (e.g., a 'Writer' and a 'Reviewer' collaborating and self-correcting) to craft the most effective sales script.
 5. **Service 3: Media Engine (FastAPI + Docker + FFMPEG)**
-   - "Xưởng dựng phim" được đóng gói hoàn toàn trong Docker để xử lý các thư viện phức tạp (MoviePy, ImageMagick).
-   - Tự động gọi API tạo ảnh (Pollinations), sinh giọng nói (Edge-TTS) và dùng FFMPEG lõi ghép nối âm thanh, phụ đề với hiệu suất cao. Tích hợp cơ chế Semaphore để kiểm soát luồng (Rate-limiting).
+   - The "Render Factory," completely containerized to handle complex dependencies (MoviePy, ImageMagick).
+   - Automatically orchestrates API calls for Image Generation (Pollinations AI) and TTS (Edge-TTS), then utilizes core FFMPEG to composite audio, subtitles, and video efficiently. Implements Semaphore-based rate-limiting to ensure API stability.
 
-## 🚀 Tính năng Kỹ thuật Nổi bật (Technical Highlights)
-* **Asynchronous & Queueing:** Người dùng không bị treo trình duyệt (block) khi chờ render video nhờ kiến trúc Celery + Redis.
-* **Concurrency Control & Exponential Backoff:** Áp dụng `asyncio.Semaphore` và thuật toán Backoff Retry trong Media Engine để tránh lỗi `429 Too Many Requests` khi gọi API sinh ảnh/âm thanh liên tục.
-* **Fault Tolerance:** Nếu một phân cảnh (scene) bị lỗi tải tài nguyên, hệ thống vẫn tiếp tục dựng các cảnh còn lại và xuất ra video cuối cùng thay vì sập toàn bộ tiến trình.
-* **Automated Garbage Collection:** Tích hợp cơ chế dọn dẹp nguyên liệu nháp ngay sau khi FFMPEG xuất xưởng thành công để tối ưu dung lượng máy chủ.
+## 🚀 Key Technical Features
+* **Asynchronous Execution & Queueing:** Users experience a non-blocking UI during the video rendering process, thanks to the Celery + Redis architecture.
+* **Concurrency Control & Exponential Backoff:** Implements `asyncio.Semaphore` and Backoff Retry algorithms within the Media Engine to prevent `429 Too Many Requests` errors when calling external generative APIs.
+* **Fault Tolerance:** If a specific scene fails to fetch resources (e.g., image API timeout), the system gracefully skips the failed asset and continues rendering the remaining scenes, ensuring a final output is always delivered rather than crashing the pipeline.
+* **Automated Garbage Collection:** Integrates a cleanup mechanism to immediately purge temporary assets (images, audio files) after successful FFMPEG rendering, optimizing server storage capacity.
 
-## 🛠️ Công nghệ sử dụng (Tech Stack)
-* **Backend:** Python, Django, FastAPI, Celery
-* **Infra & DevOps:** Docker, Redis, WSL2 (Ubuntu)
-* **AI & LLM:** LangGraph, LangChain, Groq (Llama-3), Pollinations AI, Edge-TTS
+## 🛠️ Tech Stack
+* **Backend Frameworks:** Python, Django, FastAPI, Celery
+* **Infrastructure & DevOps:** Docker, Redis, WSL2 (Ubuntu)
+* **AI & LLMs:** LangGraph, LangChain, Groq (Llama-3), Pollinations AI, Edge-TTS
 * **Media Processing:** FFMPEG CLI, MoviePy, ImageMagick
 
-## ⚙️ Hướng dẫn Cài đặt & Vận hành (Local Setup)
+## ⚙️ Local Setup & Deployment Guide
 
-### 1. Khởi động Message Broker và Media Engine (Docker)
+### 1. Initialize Message Broker & Media Engine (Docker)
 ```bash
-# Khởi động Redis
+# Start Redis
 docker run -d -p 6379:6379 --name redis-server redis:alpine
 
-# Build và chạy Media Engine (Cổng 8001)
+# Build and run the Media Engine (Port 8001)
 cd media_engine
 docker build -t innomedia-media-engine .
 docker run -d -p 8001:8001 --name media-engine-container innomedia-media-engine
-2. Khởi động AI Orchestrator (Cổng 8002)
+2. Initialize AI Orchestrator (Port 8002)
 Bash
 cd agent_orchestrator
 source venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8002
-3. Khởi động Celery Worker
+3. Start Celery Worker
 Bash
 cd web_gateway
 source venv/bin/activate
+# Limit concurrency to 2 to optimize RAM usage on local machines
 python -m celery -A core.celery worker --concurrency=2 --loglevel=info
-4. Khởi động Web Gateway (Cổng 8000)
+4. Start Web Gateway (Port 8000)
 Bash
 cd web_gateway
 source venv/bin/activate
 python manage.py runserver
-Truy cập http://127.0.0.1:8000 để bắt đầu trải nghiệm hệ thống.
+Navigate to http://127.0.0.1:8000 to interact with the application.
+
+
+---
