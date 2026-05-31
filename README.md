@@ -52,23 +52,27 @@ docker run -d -p 6379:6379 --name redis-server redis:alpine
 cd media_engine
 docker build -t innomedia-media-engine .
 docker run -d -p 8001:8001 --name media-engine-container innomedia-media-engine
+```
+
 2. Initialize AI Orchestrator (Port 8002)
-Bash
+```Bash
 cd agent_orchestrator
 source venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8002
+```
+
 3. Start Celery Worker
-Bash
+``` Bash
 cd web_gateway
 source venv/bin/activate
 # Limit concurrency to 2 to optimize RAM usage on local machines
 python -m celery -A core.celery worker --concurrency=2 --loglevel=info
+```
+
 4. Start Web Gateway (Port 8000)
-Bash
+```Bash
 cd web_gateway
 source venv/bin/activate
 python manage.py runserver
 Navigate to http://127.0.0.1:8000 to interact with the application.
-
-
----
+```
