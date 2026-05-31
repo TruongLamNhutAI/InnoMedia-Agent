@@ -1,0 +1,52 @@
+InnoMedia-Agent/
+├── docker-compose.yml           # File điều phối toàn bộ các services sau này
+├── .env                         # Chứa các API Keys (OpenAI, Runway, DB config...)
+├── web_gateway/                 # Service 1: Django
+│   ├── manage.py
+│   ├── core_app/
+│   ├── requirements.txt
+│   └── Dockerfile
+├── agent_orchestrator/          # Service 2: FastAPI + CrewAI/LangGraph
+│   ├── state.py         # (1) Chứa duy nhất class AgentState (Định nghĩa dữ liệu)
+│   ├── nodes.py         # (2) Chứa các hàm thực thi của Agent (như viết kịch bản, làm prompt)
+│   ├── graph.py         # (3) Nơi lắp ráp Đồ thị (Logic vòng lặp Feedback Loop nằm ở đây)
+│   ├── requirements.txt # File chứa thư viện (langgraph, fastapi...)
+│   ├── main.py          # FastAPI để đón request và gọi vào Đồ thị
+│   ├── agents/                  # Định nghĩa các Agent (Product, Script, Prompt)
+│   ├── workflows/               # Logic phối hợp các Agents
+│   └── Dockerfile
+└── media_engine/                # Service 3: FastAPI + Video Processing
+    ├── venv/
+    ├── requirements.txt
+    ├── main.py                  # API Server đón Request từ Service 2
+    ├── generators/
+    │   ├── __init__.py
+    │   ├── tts_generator.py     # Module sinh giọng đọc
+    │   └── video_generator.py   # Module gọi API sinh video (Runway/Luma - làm sau)
+    ├── processors/
+    │   ├── __init__.py
+    │   └── video_editor.py      # Module dùng moviepy ghép Audio + Video + Sub
+    ├── workspace/               # Thư mục tạm (temp) để lưu file mp3, mp4 tải về
+    └── Dockerfile
+
+
+Các lệnh cho Ubuntu:
+- mkdir "tên folder" : tạo folder
+- cd "~" / ".." / "tên folder" : "di chuyển đến folder mặc định của Ububtu" / "Lui ngược về folder cha" / "di chuyển đến folder đó"
+- wsl -l -v : Kiểm tra các hệ điều hành linux đang có trên máy "*" ở chỗ nào thì có nghĩa WSL đang dùng nó làm hệ điều hành chính 
+- wsl --set-default Ubuntu : set hệ điều hành chính mà WSL nhận là "Ubuntu" thay vì là Docker(mặc định)
+
+* venv: là tạo một môi trường ảo riêng biệt mới để k phải phụ thuộc vào môi trường mặc định chung
+- sudo apt install python3-venv : cài đặt gói python3-venv chung
+- rm -rf venv: Xóa thư mục venv cũ lỗi nếu có
+- python3 -m venv venv : Tạo lại venv
+- source venv/bin/activate : Kích hoạt venv
+
+Sửa lỗi python k tìm thấy thư viện
+Ctrl + Shift + P -> Python: Select Interpreter -> sẽ có ds hiện ra chọn cái có đường dẫn là môi trường mình đang chạy
+
+- Build Image để đưa lên docker(vd: innomedia-media-engine) : docker build -t innomedia-media-engine . (dấu . báo cho Docker biết là hãy dùng file Dockerfile ở thư mục hiện tại).
+- Sau khi build Image xong, ta Run : docker run -d -p 8001:8001 --name media-engine-container innomedia-media-engine
+- Kiểm tra Log của một container để xem quá trình làm việc của nó : docker logs media-engine-container / docker logs -f media-engine-container (nếu muốn xem theo thời gian thực)
+- Nhớ sau khi cập nhật lại Image của docker ta buộc phải xóa container cũ đi : docker rm -f media-engine-container (tham số -f là force: buộc container đó phải dừng lại và xóa nó.)
+- 

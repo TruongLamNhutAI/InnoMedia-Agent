@@ -1,0 +1,15 @@
+# Môi trường ảo
+venv/
+.venv/
+
+# Biến môi trường (Tuyệt đối không đưa API Key lên GitHub)
+.env
+
+# Rác Python
+__pycache__/
+*.pyc
+db.sqlite3
+
+# Thư mục chứa nguyên liệu nháp và video xuất ra
+media_engine/workspace/
+web_gateway/media/
