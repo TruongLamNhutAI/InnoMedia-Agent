@@ -18,6 +18,9 @@ class VideoProject(models.Model):
     # Trạng thái hiện tại
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     
+    # ---> BỔ SUNG TRƯỜNG NÀY: Nơi lưu trữ toàn bộ kịch bản AI trả về <---
+    script_data = models.JSONField(null=True, blank=True, verbose_name="Kịch bản AI (JSON)")
+    
     # Đường dẫn file video sau khi render xong (lúc đầu sẽ trống)
     final_video_path = models.CharField(max_length=500, blank=True, null=True)
     

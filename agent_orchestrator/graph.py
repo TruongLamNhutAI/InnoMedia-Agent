@@ -1,7 +1,7 @@
 # file: graph.py
 from langgraph.graph import StateGraph, END
 from state import AgentState
-from nodes import write_script_node, review_script_node, visual_prompt_node
+from nodes import finalize_video_plan_node, review_script_node, visual_prompt_node, write_script_node
 
 # 1. HÀM ĐỊNH TUYẾN (ROUTER)
 def router_script_approval(state: AgentState):
@@ -22,6 +22,7 @@ workflow = StateGraph(AgentState)
 workflow.add_node("write_script_node", write_script_node)
 workflow.add_node("review_script_node", review_script_node)
 workflow.add_node("visual_prompt_node", visual_prompt_node)
+workflow.add_node("finalize_video_plan_node", finalize_video_plan_node)
 
 # Vẽ đường đi (Edges)
 workflow.set_entry_point("write_script_node")
@@ -38,7 +39,8 @@ workflow.add_conditional_edges(
     }
 )
 
-workflow.add_edge("visual_prompt_node", END)
+workflow.add_edge("visual_prompt_node", "finalize_video_plan_node")
+workflow.add_edge("finalize_video_plan_node", END)
 
 # Đóng gói đồ thị
 app = workflow.compile()
@@ -72,8 +74,8 @@ if __name__ == "__main__":
     print("=== KẾT QUẢ BÀN GIAO CHO MEDIA ENGINE (SERVICE 3) ===")
     print("=======================================================\n")
     
-    if "visual_prompts" in final_state and final_state["visual_prompts"]:
+    if "video_plan" in final_state and final_state["video_plan"]:
         # In ra JSON để đem đi test
-        print(json.dumps(final_state["visual_prompts"], indent=2, ensure_ascii=False))
+        print(json.dumps(final_state["video_plan"], indent=2, ensure_ascii=False))
     else:
-        print("[THẤT BẠI] Hệ thống không thể xuất ra Visual Prompts. Hãy kiểm tra lại log.")
+        print("[THẤT BẠI] Hệ thống không thể xuất ra Video Plan. Hãy kiểm tra lại log.")

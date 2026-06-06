@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import uvicorn
 
 from graph import app as workflow_app
+from schemas import AgentResponseSchema
 
 # ==========================================
 # 1. KHỞI TẠO ỨNG DỤNG & METADATA
@@ -34,6 +35,7 @@ class ScriptRequest(BaseModel):
 class ScriptResponse(BaseModel):
     status: str
     message: str
+    video_plan: dict | None = None
     data: list | None = None
 
 # ==========================================
@@ -68,17 +70,22 @@ async def generate_script(request: ScriptRequest):
         # rồi mới gom kết quả cuối cùng (final_state) để trả về cho client.
         final_state = workflow_app.invoke(initial_state, config={"recursion_limit": 10})
         
-        # Kiểm tra graph có xuất ra được kết quả như kỳ vọng 
-        if "visual_prompts" in final_state and final_state["visual_prompts"]:
+        video_plan = final_state.get("video_plan")
+        scenes = video_plan.get("scenes", []) if isinstance(video_plan, dict) else []
+
+        # Kiểm tra graph có xuất ra được kết quả như kỳ vọng
+        if video_plan and scenes:
             print("[*] Luồng xử lý hoàn tất. Đang trả kết quả về cho Client.")
-            return ScriptResponse(
+            response = AgentResponseSchema(
                 status="success",
-                message="Kịch bản và Prompts đã được tạo thành công.",
-                data=final_state["visual_prompts"]
+                message="Video Plan đã được tạo thành công.",
+                video_plan=video_plan,
+                data=scenes,
             )
+            return ScriptResponse(**response.model_dump())
         else:
             # Graph bị ngắt giữa chừng do quá số lần retry hoặc lỗi ngầm
-            raise HTTPException(status_code=400, detail="Hệ thống AI không thể sinh kịch bản đạt chuẩn. Vui lòng thử lại URL khác.")
+            raise HTTPException(status_code=400, detail="Hệ thống AI không thể sinh Video Plan đạt chuẩn. Vui lòng thử lại URL khác.")
             
     except Exception as e:
         print(f"[!] LỖI HỆ THỐNG: {str(e)}")

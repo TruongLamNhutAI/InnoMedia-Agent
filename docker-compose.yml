@@ -1,6 +1,49 @@
 version: '3.8'
+
 services:
+  # 1. Hộp thư trung gian
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
+
+  # 2. Xưởng dựng phim 
+  media_engine:
+    build: ./media_engine
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1  # <-- Ép in log Real-time
+    restart: unless-stopped
+
+  # 3. Trí tuệ nhân tạo
+  agent_orchestrator:
+    build: ./agent_orchestrator
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env  # Trỏ đúng file chứa GROQ_API_KEY
+    depends_on:
+      - redis
+
+  # 4. Quầy lễ tân (Django)
+  web_gateway:
+    build: ./web_gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - media_engine
+      - agent_orchestrator
+    volumes:
+      - ./web_gateway:/app   # <-- THÊM DÒNG NÀY: Dùng chung Data với máy thật
+
+  # 5. Anh công nhân
+  celery_worker:
+    build: ./web_gateway
+    command: python -m celery -A core.celery worker --concurrency=2 --loglevel=info
+    depends_on:
+      - redis
+      - web_gateway
+    volumes:
+      - ./web_gateway:/app   # <-- THÊM DÒNG NÀY: Dùng chung Data với máy thật

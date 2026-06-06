@@ -54,7 +54,7 @@ def assemble_video(scene_assets: list, output_filename="final_commercial.mp4") -
             print(f"   -> Đã xử lý Cảnh {index + 1}: Thêm Phụ đề & Sync Audio ({actual_duration:.1f}s)")
             
         if not video_clips:
-            return "[LỖI] Không có phân cảnh nào hợp lệ để ghép."
+            raise Exception("Không có phân cảnh hợp lệ")
             
         # 1. Dùng MoviePy ghép Hình + Phụ đề + Voiceover (Chưa có BGM)
         print("[Video Editor] Đang nối các phân cảnh...")
@@ -107,4 +107,4 @@ def assemble_video(scene_assets: list, output_filename="final_commercial.mp4") -
         
     except Exception as e:
         print(f"[LỖI RENDER VIDEO]: {str(e)}")
-        return ""
+        raise

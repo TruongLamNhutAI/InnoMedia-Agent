@@ -3,7 +3,7 @@ import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List
+from typing import Any, Dict, List, Optional
 from generators.tts_generator import generate_audio_from_text
 from generators.video_generator import generate_visual_from_prompt
 from processors.video_editor import assemble_video
@@ -18,11 +18,21 @@ app = FastAPI(
 class SceneSchema(BaseModel):
     scene_number: int
     voiceover_text: str
-    visual_prompt: str
+    visual_prompt: str = ""
+    image_prompt: str = ""
     duration: int
 
 class RenderRequest(BaseModel):
-    scenes: List[SceneSchema]
+    scenes: Optional[List[SceneSchema]] = None
+    video_plan: Optional[Dict[str, Any]] = None
+
+
+def extract_scenes(request: RenderRequest) -> List[SceneSchema]:
+    if request.video_plan:
+        raw_scenes = request.video_plan.get("scenes", [])
+        return [SceneSchema(**scene) for scene in raw_scenes]
+
+    return request.scenes or []
 
 # --- 2. API ENDPOINT ĐỂ DJANGO GỌI VÀO (CHẠY TUẦN TỰ TỐI ƯU) ---
 @app.post("/api/v1/render", tags=["Media Factory"])
@@ -30,12 +40,16 @@ async def render_video_endpoint(request: RenderRequest):
     print("\n[*] NHẬN LỆNH RENDER TỪ SERVICE 1 (DJANGO)...")
     try:
         scene_assets = []
+        scenes = extract_scenes(request)
+
+        if not scenes:
+            raise HTTPException(status_code=400, detail="Không có scene hợp lệ để render.")
         
         # ÉP CHẠY TUẦN TỰ TỪNG CẢNH MỘT (CHỐNG SPAM API TUYỆT ĐỐI)
-        for index, scene in enumerate(request.scenes, start=1):
-            print(f"\n--- ĐANG TẢI TÀI NGUYÊN PHÂN CẢNH {index}/{len(request.scenes)} ---")
+        for index, scene in enumerate(scenes, start=1):
+            print(f"\n--- ĐANG TẢI TÀI NGUYÊN PHÂN CẢNH {index}/{len(scenes)} ---")
             text = scene.voiceover_text
-            prompt = scene.visual_prompt
+            prompt = scene.visual_prompt or scene.image_prompt
             
             # 1. Sinh ảnh và BẮT BUỘC CHỜ kết quả
             img_path = await generate_visual_from_prompt(prompt, index)

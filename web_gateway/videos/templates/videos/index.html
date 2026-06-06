@@ -3,70 +3,329 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InnoMedia - AI Video Generator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>InnoMedia Agent - AI Video Creator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #f8f9fa; }
-        .hero-section { padding: 80px 0; text-align: center; background: #212529; color: white; }
+        /* Hiệu ứng chuyển động mượt */
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Hiệu ứng xoay loading */
+        .spinner { border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid #fff; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body>
-    <div class="hero-section">
-        <div class="container">
-            <h1 class="display-4 fw-bold">InnoMedia Agent</h1>
-            <p class="lead">Hệ thống tự động hóa Video Affiliate bằng AI</p>
-        </div>
-    </div>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800">
 
-    <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card shadow">
-                    <div class="card-body p-4">
-                        <form id="videoForm" method="POST">
-                            {% csrf_token %} 
-                            
-                            <div class="mb-3">
-                                <label for="urlInput" class="form-label fw-bold">Dán Link Sản Phẩm (Shopee/Tiki/Web):</label>
-                                <input type="url" class="form-control form-control-lg" id="urlInput" name="url" placeholder="https://..." required>
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-lg w-100">🚀 Tạo Video Ngay</button>
-                        </form>
-                        
-                        <div id="resultMessage" class="mt-4 text-center"></div>
-                    </div>
+    <header class="bg-white shadow-sm py-4">
+        <div class="max-w-4xl mx-auto px-4 text-center">
+            <h1 class="text-3xl font-extrabold text-blue-600 tracking-tight">InnoMedia Agent</h1>
+            <p class="text-gray-500 text-sm mt-1">Hệ thống tự động hóa Video Affiliate bằng AI</p>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 py-12">
+        <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+
+            <div id="step-input" class="fade-in block">
+                <h2 class="text-xl font-bold mb-4 text-gray-700">Bắt đầu sáng tạo</h2>
+                <div class="flex flex-col gap-4">
+                    <label class="text-sm font-semibold text-gray-600">Dán Link Sản Phẩm (Shopee/Tiki/Web):</label>
+                    <input type="text" id="product-url" placeholder="https://shopee.vn/..." 
+                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">
+                    
+                    <button id="btn-submit" onclick="startVideoGeneration()" 
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
+                        <span id="btn-submit-icon">🚀</span> 
+                        <span id="btn-submit-text">Tạo Video Ngay</span>
+                    </button>
                 </div>
             </div>
+
+            <div id="step-progress" class="fade-in hidden text-center py-8">
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">Đang sản xuất Video của bạn...</h3>
+                <p class="text-gray-500 mb-8">AI đang phân tích và dựng hình, vui lòng không đóng trang web.</p>
+                
+                <div class="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden shadow-inner">
+                    <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-600 h-4 rounded-full" style="width: 0%; transition: width 0.5s ease-in-out;"></div>
+                </div>
+                
+                <p id="status-text" class="text-sm font-bold text-blue-600 animate-pulse">Đang khởi tạo hệ thống...</p>
+                
+                <div id="error-actions" class="hidden mt-8 fade-in">
+                    <button onclick="resetToHome()" 
+                        class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-colors border border-gray-300">
+                        ⬅️ Thử lại link khác
+                    </button>
+                </div>
+            </div>
+
+            <div id="step-result" class="fade-in hidden text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+                    <span class="text-3xl">🎉</span>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">Video Đã Sẵn Sàng!</h2>
+                
+                <div class="relative w-full max-w-sm mx-auto aspect-[9/16] bg-black rounded-xl overflow-hidden shadow-2xl mb-6">
+                    <video id="video-player" controls class="w-full h-full object-contain">
+                        <source src="" type="video/mp4">
+                        Trình duyệt của bạn không hỗ trợ thẻ video.
+                    </video>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <a id="btn-download" href="#" download 
+                        class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors shadow-lg">
+                        ⬇️ Tải Video Xuống
+                    </a>
+                    
+                    <button onclick="openEditForm()" 
+                        class="px-6 py-3 bg-white border-2 border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 font-bold rounded-lg transition-colors">
+                        ✏️ Sửa đổi Video
+                    </button>
+                    
+                    <button onclick="resetToHome()" 
+                        class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-colors">
+                        Tạo cái mới
+                    </button>
+                </div>
+            </div>
+
+            <div id="step-edit" class="fade-in hidden">
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Chỉnh sửa Kịch bản</h2>
+                    <p class="text-gray-500 mt-1">Thay đổi lời thoại hoặc mô tả hình ảnh để tạo ra video ưng ý nhất.</p>
+                </div>
+                
+                <div id="edit-form-container" class="flex flex-col gap-6 max-h-[60vh] overflow-y-auto pr-2 pb-4">
+                    </div>
+                
+                <div class="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+                    <button onclick="cancelEdit()" 
+                        class="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-lg transition-colors">
+                        Hủy bỏ
+                    </button>
+                    <button onclick="submitEditedScript()" 
+                        class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors shadow-lg flex justify-center items-center gap-2">
+                        <span>✨</span> Dựng Lại Video
+                    </button>
+                </div>
+            </div>
+
         </div>
-    </div>
+    </main>
 
     <script>
-        document.getElementById('videoForm').onsubmit = async function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const resultDiv = document.getElementById('resultMessage');
+        let currentTaskId = ""; 
+        let currentProjectId = "";
+
+        // Hàm Reset lại trang về trạng thái tinh khôi
+        function resetToHome() {
+            // Ẩn các bước sau, hiện lại bước 1
+            document.getElementById('step-progress').classList.add('hidden');
+            document.getElementById('step-result').classList.add('hidden');
+            document.getElementById('step-edit').classList.add('hidden');
+            document.getElementById('step-input').classList.remove('hidden');
+
+            // Xóa input cũ
+            document.getElementById('product-url').value = "";
             
-            // 1. Tìm và lấy mã bảo mật mà Django đã giấu trong form
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            // Phục hồi nút submit
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = false;
+            btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            document.getElementById('btn-submit-icon').className = "";
+            document.getElementById('btn-submit-icon').innerHTML = "🚀";
+            document.getElementById('btn-submit-text').innerText = "Tạo Video Ngay";
+
+            // Phục hồi màu sắc thanh Progress 
+            document.getElementById('progress-bar').style.width = '0%';
+            document.getElementById('progress-bar').classList.replace('bg-red-500', 'bg-gradient-to-r');
+            document.getElementById('status-text').classList.replace('text-red-600', 'text-blue-600');
+            document.getElementById('status-text').innerText = "Đang khởi tạo hệ thống...";
+            document.getElementById('status-text').classList.add('animate-pulse');
             
-            resultDiv.innerHTML = '<span class="text-warning">⏳ Đang đẩy yêu cầu vào hàng đợi Celery...</span>';
+            // Ẩn nút báo lỗi
+            document.getElementById('error-actions').classList.add('hidden');
             
-            // 2. Gắn mã bảo mật vào Headers khi gửi đi
-            const response = await fetch('', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken // Trình thẻ cho bảo vệ Django
-                },
-                body: formData
-            });
-            const data = await response.json();
-            
-            if(data.status === 'success') {
-                resultDiv.innerHTML = `<span class="text-success fw-bold">✅ Đã tiếp nhận! Task ID: ${data.task_id}</span><br><small>Hãy mở Terminal của Celery lên để xem hệ thống đang chạy ngầm nhé!</small>`;
-            } else {
-                resultDiv.innerHTML = `<span class="text-danger fw-bold">❌ Lỗi: ${data.message}</span>`;
+            // Dọn dẹp video player
+            document.getElementById('video-player').src = "";
+        }
+
+        function startVideoGeneration() {
+            const urlInput = document.getElementById('product-url').value;
+            if (!urlInput) {
+                alert("Vui lòng nhập đường link sản phẩm!");
+                return;
             }
-        };
+
+            // Hiệu ứng Loading cho Nút bấm
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true;
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+            document.getElementById('btn-submit-icon').innerHTML = "";
+            document.getElementById('btn-submit-icon').className = "spinner";
+            document.getElementById('btn-submit-text').innerText = "Đang kết nối...";
+
+            // Gửi API ngầm (AJAX)
+            fetch('/api/v1/create-task/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_url: urlInput })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    currentTaskId = data.task_id;
+                    currentProjectId = data.project_id; 
+                    
+                    // Chuyển giao diện sang Progress
+                    document.getElementById('step-input').classList.add('hidden');
+                    document.getElementById('step-progress').classList.remove('hidden');
+                    
+                    pollTaskStatus(data.task_id);
+                } else {
+                    // Nếu lỗi từ khâu kết nối đầu tiên
+                    resetToHome();
+                    alert("Lỗi: " + data.message);
+                }
+            })
+            .catch(err => {
+                resetToHome();
+                alert("Lỗi kết nối đến máy chủ.");
+            });
+        }
+
+        function pollTaskStatus(taskId) {
+            fetch(`/api/v1/task-status/${taskId}/`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('progress-bar').style.width = data.percent + '%';
+                document.getElementById('status-text').innerText = data.percent + '% - ' + data.message;
+
+                if (data.state === 'SUCCESS') {
+                    setTimeout(() => {
+                        document.getElementById('step-progress').classList.add('hidden');
+                        document.getElementById('step-result').classList.remove('hidden');
+                        
+                        const finalVideoUrl = data.video_url || ""; 
+                        document.getElementById('video-player').src = finalVideoUrl;
+                        document.getElementById('btn-download').href = finalVideoUrl;
+                    }, 1000); 
+                    
+                } else if (data.state === 'FAILURE') {
+                    showError(data.message);
+                } else {
+                    setTimeout(() => pollTaskStatus(taskId), 2000);
+                }
+            })
+            .catch(err => {
+                // Nếu bị đứt mạng giữa chừng, vẫn thử lại chứ không bỏ cuộc ngay
+                setTimeout(() => pollTaskStatus(taskId), 3000);
+            });
+        }
+
+        function showError(msg) {
+            document.getElementById('progress-bar').classList.replace('bg-gradient-to-r', 'bg-red-500');
+            document.getElementById('status-text').classList.replace('text-blue-600', 'text-red-600');
+            document.getElementById('status-text').innerText = "❌ Lỗi: " + msg;
+            document.getElementById('status-text').classList.remove('animate-pulse');
+            
+            // Hiển thị nút bấm để thoát khỏi màn hình lỗi
+            document.getElementById('error-actions').classList.remove('hidden');
+        }
+
+        // --- CÁC HÀM XỬ LÝ TÍNH NĂNG CHỈNH SỬA (RE-PROMPT) ---
+        let currentScriptData = null;
+
+        function openEditForm() {
+            document.getElementById('step-result').classList.add('hidden');
+            document.getElementById('step-edit').classList.remove('hidden');
+            
+            const container = document.getElementById('edit-form-container');
+            container.innerHTML = '<p class="text-center text-gray-500 font-bold py-10">Đang tải kịch bản từ máy chủ...</p>';
+
+            fetch(`/api/v1/get-script/${currentProjectId}/`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    currentScriptData = data.script_data;
+                    renderEditForm();
+                } else {
+                    container.innerHTML = `<p class="text-center text-red-500 font-bold py-10">Lỗi: ${data.message}</p>`;
+                }
+            })
+            .catch(err => {
+                container.innerHTML = `<p class="text-center text-red-500 font-bold py-10">Lỗi kết nối máy chủ.</p>`;
+            });
+        }
+
+        function renderEditForm() {
+            const container = document.getElementById('edit-form-container');
+            container.innerHTML = ''; 
+
+            const scenes = currentScriptData.data || [];
+            
+            scenes.forEach((scene, index) => {
+                const sceneCard = document.createElement('div');
+                sceneCard.className = "bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-sm transition hover:shadow-md";
+                
+                sceneCard.innerHTML = `
+                    <div class="font-bold text-blue-600 mb-3 border-b border-gray-200 pb-2 flex justify-between items-center">
+                        <span>Phân cảnh ${scene.scene_number || index + 1}</span>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">✍️ Lời thoại (Voiceover):</label>
+                        <textarea id="voice-${index}" class="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" rows="2">${scene.voiceover_text}</textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">🎨 Mô tả hình ảnh (Visual Prompt):</label>
+                        <textarea id="visual-${index}" class="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" rows="3">${scene.visual_prompt}</textarea>
+                    </div>
+                `;
+                container.appendChild(sceneCard);
+            });
+        }
+
+        function cancelEdit() {
+            document.getElementById('step-edit').classList.add('hidden');
+            document.getElementById('step-result').classList.remove('hidden');
+        }
+
+        function submitEditedScript() {
+            const scenes = currentScriptData.data || [];
+            scenes.forEach((scene, index) => {
+                scene.voiceover_text = document.getElementById(`voice-${index}`).value;
+                scene.visual_prompt = document.getElementById(`visual-${index}`).value;
+            });
+
+            document.getElementById('step-edit').classList.add('hidden');
+            document.getElementById('step-progress').classList.remove('hidden');
+            
+            // Xóa rác giao diện nếu trước đó có lỗi
+            document.getElementById('error-actions').classList.add('hidden');
+            document.getElementById('progress-bar').style.width = '0%';
+            document.getElementById('status-text').innerText = "Đang gửi kịch bản mới...";
+            document.getElementById('status-text').classList.add('animate-pulse');
+            document.getElementById('progress-bar').classList.replace('bg-red-500', 'bg-gradient-to-r');
+            document.getElementById('status-text').classList.replace('text-red-600', 'text-blue-600');
+
+            fetch(`/api/v1/rerender/${currentProjectId}/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ script_data: currentScriptData })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    pollTaskStatus(data.task_id);
+                } else {
+                    showError(data.message);
+                }
+            })
+            .catch(err => showError("Lỗi kết nối máy chủ khi Re-render."));
+        }
     </script>
 </body>
 </html>

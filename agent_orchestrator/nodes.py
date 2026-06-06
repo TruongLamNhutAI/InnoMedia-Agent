@@ -7,6 +7,18 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_groq import ChatGroq
 from typing import List
+from schemas import (
+    CritiqueResultSchema,
+    InputDataSchema,
+    MarketingStrategySchema,
+    ProductDataSchema,
+    PromptPlanItemSchema,
+    QualityChecksSchema,
+    ScenePlanItemSchema,
+    ScriptDataSchema,
+    VideoPlanSceneSchema,
+    VideoPlanSchema,
+)
 
 class VideoScriptSchema(BaseModel): # Output Schema
     hook: str = Field(description="Câu mở đầu 3 giây, gây shock hoặc tò mò mạnh để giữ chân người xem.")
@@ -71,8 +83,18 @@ def write_script_node(state: AgentState):
     })
     
     # 4. Trả về State mới (response lúc này là 1 object đã được chuẩn hóa theo VideoScriptSchema)
+    script_data = ScriptDataSchema(
+        hook=response.hook,
+        body=response.body,
+        cta=response.cta,
+        full_script=f"{response.hook}\n\n{response.body}\n\n{response.cta}",
+        estimated_duration=response.duration_estimate,
+        claims_used=[],
+    )
+
     return {
         "raw_script": response.model_dump_json(), # Chuyển thành chuỗi JSON chuẩn để lưu
+        "script_data": script_data.model_dump(),
         "retry_count": current_retry + 1
     }
 
@@ -116,14 +138,36 @@ def review_script_node(state: AgentState):
         # 4. Trả về State mới dựa trên quyết định của Giám đốc AI
         if evaluation.is_approved:
             print("   -> ĐẠT: Kịch bản chốt sale xuất sắc! Cho phép đi tiếp.")
+            critique = CritiqueResultSchema(
+                approved=True,
+                overall_score=8.0,
+                hook_score=8.0,
+                clarity_score=8.0,
+                conversion_score=8.0,
+                platform_fit_score=8.0,
+                issues=[],
+                revision_instruction="",
+            )
             return {
                 "script_approved": True,
+                "critique": critique.model_dump(),
                 "review_feedback": "" # Xóa feedback cũ vì đã đạt
             }
         else:
             print(f"   -> TỪ CHỐI: {evaluation.feedback}")
+            critique = CritiqueResultSchema(
+                approved=False,
+                overall_score=5.0,
+                hook_score=5.0,
+                clarity_score=5.0,
+                conversion_score=5.0,
+                platform_fit_score=5.0,
+                issues=[evaluation.feedback],
+                revision_instruction=evaluation.feedback,
+            )
             return {
                 "script_approved": False,
+                "critique": critique.model_dump(),
                 "review_feedback": evaluation.feedback # Gửi feedback này ngược lại cho Writer
             }
             
@@ -167,10 +211,109 @@ def visual_prompt_node(state: AgentState):
     try:
         result = chain.invoke({"script_data": raw_script_json})
         prompts_data = [scene.model_dump() for scene in result.scenes]
+        scene_plan = {
+            "scenes": [
+                ScenePlanItemSchema(
+                    scene_number=scene["scene_number"],
+                    duration=scene["duration"],
+                    voiceover_text=scene["voiceover_text"],
+                    subtitle_text=scene["voiceover_text"],
+                    scene_goal="conversion_step",
+                    visual_description=scene["visual_prompt"],
+                    product_focus=True,
+                    transition="cut",
+                ).model_dump()
+                for scene in prompts_data
+            ]
+        }
+        prompt_plan = {
+            "scenes": [
+                PromptPlanItemSchema(
+                    scene_number=scene["scene_number"],
+                    image_prompt=scene["visual_prompt"],
+                    consistency_notes="Keep the same product identity and visual style across scenes.",
+                ).model_dump()
+                for scene in prompts_data
+            ]
+        }
         
         print(f"   -> THÀNH CÔNG: Đã xuất bản {len(prompts_data)} phân cảnh hoàn chỉnh (Có Voiceover + Prompt)!")
-        return {"visual_prompts": prompts_data}
+        return {
+            "visual_prompts": prompts_data,
+            "scene_plan": scene_plan,
+            "prompt_plan": prompt_plan,
+        }
         
     except Exception as e:
         print(f"   -> [LỖI HỆ THỐNG PROMPTER]: {str(e)}")
-        return {"visual_prompts": []}
+        return {"visual_prompts": [], "errors": [str(e)]}
+
+
+def finalize_video_plan_node(state: AgentState):
+    print("\n[Node: Finalizer] Đang đóng gói Video Plan chuẩn cho Media Engine...")
+
+    product_url = state.get("product_url", "")
+    input_data = InputDataSchema(product_url=product_url)
+    product_data = ProductDataSchema(
+        name=product_url,
+        description=product_url,
+        selling_points=[],
+        pain_points=[],
+        risk_notes=["Phase 1 placeholder: Product Agent/RAG chưa được kích hoạt."],
+    )
+    marketing_strategy = MarketingStrategySchema(
+        selected_hooks=[state.get("script_data", {}).get("hook", "")],
+        selected_ctas=[state.get("script_data", {}).get("cta", "")],
+    )
+    script_data = state.get("script_data") or {}
+    critique = state.get("critique") or {}
+    visual_prompts = state.get("visual_prompts") or []
+
+    scenes = []
+    for scene in visual_prompts:
+        voiceover_text = scene.get("voiceover_text", "")
+        image_prompt = scene.get("visual_prompt", "")
+        scenes.append(
+            VideoPlanSceneSchema(
+                scene_number=scene.get("scene_number", len(scenes) + 1),
+                duration=scene.get("duration", 3),
+                voiceover_text=voiceover_text,
+                subtitle_text=voiceover_text,
+                scene_goal="conversion_step",
+                visual_description=image_prompt,
+                product_focus=True,
+                transition="cut",
+                image_prompt=image_prompt,
+                visual_prompt=image_prompt,
+                visual_style=marketing_strategy.visual_style,
+            )
+        )
+
+    video_plan = VideoPlanSchema(
+        platform=input_data.platform,
+        aspect_ratio="9:16",
+        duration=script_data.get("estimated_duration", input_data.video_duration),
+        language=input_data.language,
+        video_goal=marketing_strategy.video_goal,
+        product=product_data,
+        marketing_strategy=marketing_strategy,
+        script=ScriptDataSchema(**script_data),
+        scenes=scenes,
+        quality_checks=QualityChecksSchema(
+            script_score=critique.get("overall_score", 0),
+            visual_consistency_score=8.0 if scenes else 0,
+        ),
+        metadata={
+            "contract_version": "video_plan.v1",
+            "phase": "phase_1_schema_standardization",
+            "input_data": input_data.model_dump(),
+        },
+    )
+
+    print(f"   -> Video Plan đã sẵn sàng với {len(scenes)} cảnh.")
+    return {
+        "input_data": input_data.model_dump(),
+        "product_data": product_data.model_dump(),
+        "marketing_strategy": marketing_strategy.model_dump(),
+        "video_plan": video_plan.model_dump(),
+    }
